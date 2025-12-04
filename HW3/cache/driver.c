@@ -13,6 +13,31 @@ unsigned long long rdtsc()
   return ((unsigned long long)a) | (((unsigned long long)d) << 32);
 }
 
+void morton2coor(int index, int *x, int *y){
+  *x = 0; 
+  *y = 0;
+  for (int i = 0; i < 16; ++i) {
+    *x |= ((index >> (2*i + 0)) & 1) << i;
+    *y |= ((index >> (2*i + 1)) & 1) << i;
+  }
+}
+
+void matrix_convert(double *src, double *dst, int N){
+  for (int i = 0; i != N*N; ++i){
+    int x, y;
+    morton2coor(i, &x, &y);
+    dst[y*N + x] = src[i];
+  }
+}
+
+void transpose_naive(double *a, double *b, int N){
+  for (int i = 0; i != N; ++i){
+    for (int j = 0; j != N; ++j){
+      b[j*N + i] = a[i*N + j];
+    }
+  }
+}
+
 int check(double *a, double *b, int N){
   int res = 1;
   for (int i = 0; res && i != N*N; ++i){
@@ -52,7 +77,11 @@ int main(int argc, char** argv){
     posix_memalign((void**)&a, 64, sizeof(double)*N*N);
     posix_memalign((void**)&b, 64, sizeof(double)*N*N);
     posix_memalign((void**)&c, 64, sizeof(double)*N*N);
-    
+
+    double *ref_a, *ref_b, *ref_c;
+    posix_memalign((void**)&ref_a, 64, sizeof(double)*N*N);
+    posix_memalign((void**)&ref_b, 64, sizeof(double)*N*N);
+    posix_memalign((void**)&ref_c, 64, sizeof(double)*N*N);
 	  
     //initialize data assuming data is row major order
     for (int i = 0; i != N; ++i){
@@ -77,10 +106,12 @@ int main(int argc, char** argv){
       
       sum += (t1 - t0);  
     }
-
+    matrix_convert(a, ref_a, N);
+    matrix_convert(b, ref_b, N);
+    transpose_naive(ref_a, ref_c, N);
     //WARNING! PASS THIS TEST DOES NOT MEAN THE TRANSPOSE ITSELF IS CORRECT!
-    res = check(a, c, N); //is the final matrix is the same?    
-    printf("%3.3lf\t%d\t", sum/(2.0*runs), res);
+    res = check(ref_c, ref_b, N); //is the final matrix is the same?    
+    printf("%12.3lf\t%d\t", sum/(2.0*runs), res);
     
     printf("\n");
 
